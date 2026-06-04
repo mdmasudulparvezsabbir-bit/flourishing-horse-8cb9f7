@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Guard Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner(uidField) {
+      return isSignedIn() && uidField == request.auth.uid;
+    }
+
+    // --- Entity Specific Validators ---
+    function isValidUser(user) {
+      return user.keys().hasAll(['uid', 'username', 'name', 'role']) 
+        && user.keys().size() == 4
+        && user.uid is string
+        && user.username is string && user.username.size() <= 50
+        && user.name is string && user.name.size() <= 100
+        && user.role in ['Admin', 'Manager', 'User'];
+    }
+
+    function isValidIncome(inc) {
+      return inc.keys().hasAll(['userId', 'amount', 'category', 'source'])
+        && inc.keys().size() >= 4
+        && inc.userId is string
+        && inc.amount is number && inc.amount >= 0
+        && inc.category is string && inc.category.size() <= 50
+        && inc.source is string && inc.source.size() <= 50;
+    }
+
+    function isValidExpense(exp) {
+      return exp.keys().hasAll(['userId', 'amount', 'category', 'source', 'status'])
+        && exp.keys().size() >= 5
+        && exp.userId is string
+        && exp.amount is number && exp.amount >= 0
+        && exp.category is string && exp.category.size() <= 50
+        && exp.source is string && exp.source.size() <= 50
+        && exp.status in ['Pending', 'Approved', 'Rejected'];
+    }
+
+    function isValidNotification(notif) {
+      return notif.keys().hasAll(['userId', 'title', 'message', 'isRead'])
+        && notif.keys().size() >= 4
+        && notif.userId is string
+        && notif.title is string && notif.title.size() <= 100
+        && notif.message is string && notif.message.size() <= 500
+        && notif.isRead is bool;
+    }
+
+    function isValidTodo(todo) {
+      return todo.keys().hasAll(['name', 'isCompleted'])
+        && todo.keys().size() >= 2
+        && todo.name is string && todo.name.size() <= 100
+        && todo.isCompleted is bool;
+    }
+
+    // --- Security Rule Blocks ---
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) 
+        && incoming().role == existing().role; // Users can't escalate their own role
+      allow delete: if false; // Profiles are permanent via client
+    }
+
+    match /income/{incomeId} {
+      allow read: if isSignedIn() && isOwner(existing().userId);
+      allow create: if isSignedIn() && isOwner(incoming().userId) && isValidIncome(incoming());
+      allow update: if isSignedIn() && isOwner(existing().userId) && isOwner(incoming().userId) && isValidIncome(incoming());
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isSignedIn() && (isOwner(existing().userId) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Manager']);
+      allow create: if isSignedIn() && isOwner(incoming().userId) && isValidExpense(incoming());
+      allow update: if isSignedIn() && (
+        // Managers or Admins can review details
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Manager'] && isValidExpense(incoming())) ||
+        // Owner can edit pending expenses
+        (isOwner(existing().userId) && isOwner(incoming().userId) && existing().status == 'Pending' && isValidExpense(incoming()))
+      );
+      allow delete: if isSignedIn() && isOwner(existing().userId) && existing().status == 'Pending';
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && isOwner(existing().userId);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && isOwner(existing().userId) && isValidNotification(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']); // Only modify read status
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /todos/{todoId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidTodo(incoming());
+      allow update: if isSignedIn() && isValidTodo(incoming());
+      allow delete: if isSignedIn();
+    }
+  }
+}

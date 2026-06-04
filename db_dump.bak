@@ -1,0 +1,39 @@
+-- Database Dump
+
+-- Table: User
+INSERT INTO "User" ("id", "email", "name") VALUES (1, 'alice-1778705593365@prisma.io', 'Alice');
+INSERT INTO "User" ("id", "email", "name") VALUES (2, 'alice-1778705887187@prisma.io', 'Alice');
+
+-- Table: Post
+
+-- Table: users
+INSERT INTO "users" ("id", "username", "password", "role", "name", "photo", "created_at") VALUES ('a0472edb-4343-4cad-b410-8f5d90019f0b', 'admin', '$2b$10$w54ryWI893.6Q74d0GhD7OWLufFlvZeN0AMkfjv3w4am0zCvAOIFq', 'Admin', 'System Admin', NULL, '2026-05-13T20:58:32.902Z');
+
+-- Table: income
+
+-- Table: expenses
+
+-- Table: notifications
+
+-- Table: settings
+INSERT INTO "settings" ("id", "company_name", "logo", "balances") VALUES (1, 'Abirlink ERP', NULL, '{"cash":0,"dbbl":0,"bkash":0,"nagad":0}');
+
+-- Table: requisitions
+
+-- Table: stock_out
+
+-- Table: stock_items
+
+-- Table: purchases
+
+-- Table: due_payments
+
+-- Table: rooms
+INSERT INTO "rooms" ("id", "name", "created_at") VALUES ('844d9424-9ac7-4578-b26b-e6b02e9be1d3', 'general', '2026-05-13T20:58:32.921Z');
+
+-- Table: room_members
+
+-- Table: messages
+
+-- Table: todos
+
